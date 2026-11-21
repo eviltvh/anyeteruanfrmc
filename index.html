@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ubicador de medicamentos</title>
+<meta name="description" content="Busca una sustancia activa y te dice en qué división de la farmacia está.">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  @font-face { font-family: "EB Garamond"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/eb-garamond-400.woff2") format("woff2"); }
+  @font-face { font-family: "EB Garamond"; font-weight: 600 700; font-style: normal; font-display: swap; src: url("fonts/eb-garamond-600.woff2") format("woff2"); }
+
+  :root {
+    --bg: #f2efe8;
+    --ink: #111;
+    --hi: #ffe14d;
+    --mut: #5f5b52;
+    --card: #fff;
+    --line: 3px solid var(--ink);
+    --serif: "EB Garamond", Garamond, Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+    min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  :focus-visible { outline: 3px solid #1a5cff; outline-offset: 2px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  header { padding: 18px 16px 10px; max-width: 720px; margin: 0 auto; }
+  h1 { font-family: var(--serif); font-weight: 600; font-size: clamp(30px, 8vw, 44px); line-height: 1; margin: 0; letter-spacing: -.01em; }
+  header p { margin: 6px 0 0; color: var(--mut); font-size: 14px; }
+
+  nav { max-width: 720px; margin: 8px auto 0; padding: 0 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  nav button { min-height: 46px; border: var(--line); background: var(--card); font-weight: 700; font-size: 15px; }
+  nav button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  section[hidden] { display: none; }
+
+  /* Buscar */
+  .search { width: 100%; font: inherit; font-size: 20px; padding: 14px 16px; border: var(--line); background: var(--card); box-shadow: 5px 5px 0 var(--ink); border-radius: 0; }
+  .meta { margin: 14px 0 6px; color: var(--mut); font-size: 14px; }
+  .results { display: grid; gap: 12px; margin-top: 10px; }
+  .res {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; text-align: left; width: 100%;
+    border: var(--line); background: var(--card); padding: 10px 12px; box-shadow: 4px 4px 0 var(--ink);
+  }
+  .res:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .code { font-family: var(--serif); font-weight: 700; font-size: 38px; line-height: 1; background: var(--hi); border: var(--line); padding: 6px 10px 4px; white-space: nowrap; }
+  .res .sub { font-weight: 700; font-size: 18px; overflow-wrap: anywhere; }
+  .res .brand { color: var(--mut); font-size: 14px; overflow-wrap: anywhere; }
+  .res .where { color: var(--mut); font-size: 12px; margin-top: 2px; }
+  .mini { display: grid; grid-template-columns: repeat(5, 11px); gap: 2px; }
+  .mini i { display: block; width: 11px; height: 8px; background: #d8d4ca; }
+  .mini i.on { background: var(--ink); }
+  .empty { border: 3px dashed var(--ink); padding: 18px; background: transparent; }
+  .empty b { font-family: var(--serif); font-size: 22px; font-weight: 600; }
+
+  /* Estantes */
+  .hint { margin: 0 0 12px; color: var(--mut); font-size: 14px; }
+  .shelf-grid { display: grid; grid-template-columns: 30px repeat(5, 1fr); gap: 6px; align-items: stretch; }
+  .shelf-grid .colh, .shelf-grid .rowh { font-family: var(--serif); font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; color: var(--mut); }
+  .shelf-grid .rowh { writing-mode: horizontal-tb; }
+  .cell { border: var(--line); background: var(--card); min-height: 72px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .cell .c { font-family: var(--serif); font-weight: 700; font-size: 22px; line-height: 1; }
+  .cell .n { font-size: 11px; color: var(--mut); }
+  .cell.empty-cell { background: transparent; border-style: dashed; }
+  .legend { margin-top: 12px; font-size: 13px; color: var(--mut); }
+
+  /* Respaldo */
+  .stack { display: grid; gap: 12px; }
+  .btn { min-height: 46px; padding: 8px 14px; border: var(--line); background: var(--card); font-weight: 700; box-shadow: 4px 4px 0 var(--ink); text-align: center; }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .btn.dark { background: var(--ink); color: var(--bg); }
+  .btn.danger { background: #ff6b5e; }
+  .note { font-size: 14px; color: var(--mut); margin: 0; }
+  .stat { font-family: var(--serif); font-size: 22px; font-weight: 600; }
+
+  /* Editor de división */
+  dialog { border: var(--line); padding: 0; background: var(--bg); width: calc(100% - 20px); max-width: 560px; max-height: 90dvh; box-shadow: 8px 8px 0 var(--ink); color: var(--ink); }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  .dlg-head { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: var(--line); background: var(--hi); position: sticky; top: 0; z-index: 1; }
+  .dlg-head .code { background: var(--card); }
+  .dlg-head .t { flex: 1; font-family: var(--serif); font-weight: 600; font-size: 20px; line-height: 1.1; }
+  .dlg-head button { width: 46px; height: 46px; border: var(--line); background: var(--card); font-size: 22px; font-weight: 700; }
+  .dlg-body { padding: 12px; display: grid; gap: 12px; overflow-y: auto; max-height: calc(90dvh - 80px); }
+  label { display: grid; gap: 4px; font-weight: 700; font-size: 14px; }
+  input[type=text], textarea, select { font: inherit; font-size: 17px; padding: 10px 12px; border: var(--line); background: var(--card); border-radius: 0; width: 100%; color: var(--ink); }
+  textarea { min-height: 110px; resize: vertical; }
+  details { border: 2px solid var(--ink); padding: 8px 10px; background: var(--card); }
+  summary { font-weight: 700; cursor: pointer; min-height: 28px; }
+  .items { display: grid; gap: 8px; }
+  .item { border: 2px solid var(--ink); background: var(--card); padding: 8px 10px; display: grid; gap: 6px; }
+  .item .sub { font-weight: 700; overflow-wrap: anywhere; }
+  .item .brand { color: var(--mut); font-size: 14px; overflow-wrap: anywhere; }
+  .item .acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .item .acts button, .item .acts select { min-height: 38px; padding: 4px 10px; font-size: 14px; border: 2px solid var(--ink); background: var(--bg); font-weight: 700; width: auto; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; font-weight: 700; z-index: 99; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ubicador de medicamentos</h1>
+  <p>Escribe la sustancia activa y te digo en qué división está.</p>
+</header>
+
+<nav role="tablist" aria-label="Secciones">
+  <button role="tab" id="tab-buscar" aria-controls="v-buscar" aria-selected="true">Buscar</button>
+  <button role="tab" id="tab-estantes" aria-controls="v-estantes" aria-selected="false">Estantes</button>
+  <button role="tab" id="tab-respaldo" aria-controls="v-respaldo" aria-selected="false">Respaldo</button>
+</nav>
+
+<main>
+  <section id="v-buscar" role="tabpanel" aria-labelledby="tab-buscar">
+    <input id="q" class="search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+           placeholder="Ej. paracetamol, ibuprofeno…" aria-label="Buscar sustancia activa o marca">
+    <div id="meta" class="meta" aria-live="polite"></div>
+    <div id="results" class="results"></div>
+  </section>
+
+  <section id="v-estantes" role="tabpanel" aria-labelledby="tab-estantes" hidden>
+    <p class="hint">Vista de frente: 5 estantes (A–E) y 4 niveles (1 = arriba, 4 = abajo). Toca una división para llenarla o editarla.</p>
+    <div id="grid" class="shelf-grid"></div>
+    <p class="legend">Línea punteada = división vacía.</p>
+  </section>
+
+  <section id="v-respaldo" role="tabpanel" aria-labelledby="tab-respaldo" hidden>
+    <div class="stack">
+      <div class="stat" id="stat"></div>
+      <p class="note">Los datos se guardan solo en este dispositivo (en el navegador). Si usas otro teléfono o compu, exporta aquí e importa allá.</p>
+      <button class="btn dark" id="exp-json">Descargar respaldo (JSON)</button>
+      <button class="btn" id="exp-csv">Descargar tabla (CSV)</button>
+      <button class="btn" id="imp">Importar respaldo (combinar)</button>
+      <input id="file" type="file" accept="application/json,.json" hidden>
+      <button class="btn danger" id="wipe">Borrar todo</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <div class="dlg-head">
+    <div class="code" id="dlg-code">A-1</div>
+    <div class="t" id="dlg-title">Estante A · Nivel 1</div>
+    <button id="dlg-close" aria-label="Cerrar">×</button>
+  </div>
+  <div class="dlg-body">
+    <form id="form" autocomplete="off">
+      <div style="display:grid;gap:10px">
+        <label>Sustancia activa
+          <input type="text" id="f-sub" list="subs" required autocapitalize="off" spellcheck="false" placeholder="paracetamol">
+        </label>
+        <label>Marca / presentación (opcional)
+          <input type="text" id="f-name" placeholder="Tempra 500 mg 20 tabs">
+        </label>
+        <button class="btn dark" type="submit" id="f-submit">Agregar a esta división</button>
+        <button class="btn" type="button" id="f-cancel" hidden>Cancelar edición</button>
+      </div>
+      <datalist id="subs"></datalist>
+    </form>
+
+    <details>
+      <summary>Pegar varias de golpe</summary>
+      <div style="display:grid;gap:8px;margin-top:8px">
+        <p class="note">Una por línea: <b>sustancia | marca</b> (la marca es opcional).</p>
+        <textarea id="bulk" placeholder="paracetamol | Tempra 500 mg&#10;ibuprofeno | Advil 400 mg&#10;loratadina"></textarea>
+        <button class="btn" type="button" id="bulk-add">Agregar todas</button>
+      </div>
+    </details>
+
+    <div>
+      <div class="meta" id="count" style="margin-top:0"></div>
+      <div class="items" id="items"></div>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Configuración ----------
+  const SHELVES = ['A', 'B', 'C', 'D', 'E'];   // 5 estantes
+  const LEVELS = [1, 2, 3, 4];                 // 4 niveles (1 = arriba)
+  const CODES = LEVELS.flatMap(l => SHELVES.map(s => `${s}-${l}`)); // orden de lectura: fila por fila
+  const KEY = 'ubicador-medicamentos.v1';
+
+  // ---------- Utilidades ----------
+  const $ = (id) => document.getElementById(id);
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const h = (tag, attrs = {}, ...kids) => {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') el.className = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (v !== false && v != null) el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid != null) el.append(kid.nodeType ? kid : document.createTextNode(kid));
+    return el;
+  };
+  const label = (code) => { const [s, l] = code.split('-'); return `Estante ${s} · Nivel ${l}`; };
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ---------- Datos ----------
+  let db = load();
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY));
+      if (d && Array.isArray(d.items)) return { v: 1, items: d.items.filter(valid) };
+    } catch (e) { /* vacío */ }
+    return { v: 1, items: [] };
+  }
+  function valid(it) { return it && typeof it.sub === 'string' && it.sub.trim() && CODES.includes(it.loc); }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); return true; }
+    catch (e) { toast('No se pudo guardar en este navegador'); return false; }
+  }
+  const itemsAt = (code) => db.items.filter(i => i.loc === code);
+  const dupKey = (i) => `${i.loc}|${norm(i.sub)}|${norm(i.name)}`;
+  function addItem(loc, sub, name) {
+    sub = sub.trim(); name = (name || '').trim();
+    if (!sub) return false;
+    const it = { id: uid(), sub, name, loc };
+    if (db.items.some(x => dupKey(x) === dupKey(it))) return false;
+    db.items.push(it); return true;
+  }
+
+  // ---------- Pestañas ----------
+  const TABS = ['buscar', 'estantes', 'respaldo'];
+  function showTab(name) {
+    for (const t of TABS) {
+      $('tab-' + t).setAttribute('aria-selected', String(t === name));
+      $('v-' + t).hidden = t !== name;
+    }
+    if (name === 'buscar') { renderResults(); $('q').focus(); }
+    if (name === 'estantes') renderGrid();
+    if (name === 'respaldo') renderStat();
+  }
+  for (const t of TABS) $('tab-' + t).addEventListener('click', () => showTab(t));
+
+  // ---------- Buscar ----------
+  function search(q) {
+    const tokens = norm(q).split(' ').filter(Boolean);
+    if (!tokens.length) return [];
+    const groups = new Map(); // sustancia + división
+    for (const it of db.items) {
+      const s = norm(it.sub), n = norm(it.name), hay = s + ' ' + n;
+      if (!tokens.every(t => hay.includes(t))) continue;
+      const rank = s.startsWith(tokens[0]) ? 0 : s.includes(tokens[0]) ? 1 : n.startsWith(tokens[0]) ? 2 : 3;
+      const k = s + '|' + it.loc;
+      if (!groups.has(k)) groups.set(k, { sub: it.sub, loc: it.loc, names: [], rank });
+      const g = groups.get(k);
+      g.rank = Math.min(g.rank, rank);
+      if (it.name) g.names.push(it.name);
+    }
+    return [...groups.values()].sort((a, b) =>
+      a.rank - b.rank || norm(a.sub).localeCompare(norm(b.sub)) || CODES.indexOf(a.loc) - CODES.indexOf(b.loc));
+  }
+
+  function miniMap(code) {
+    return h('div', { class: 'mini', 'aria-hidden': 'true' }, CODES.map(c => h('i', { class: c === code ? 'on' : '' })));
+  }
+
+  function renderResults() {
+    const q = $('q').value, box = $('results'), meta = $('meta');
+    box.replaceChildren();
+    if (!db.items.length) {
+      meta.textContent = '';
+      box.append(h('div', { class: 'empty' }, h('b', {}, 'Todavía no hay medicamentos.'),
+        h('p', {}, 'Ve a “Estantes”, toca una división y agrega lo que hay en ella.')));
+      return;
+    }
+    if (!norm(q)) { meta.textContent = `${db.items.length} productos guardados en ${new Set(db.items.map(i => i.loc)).size} divisiones.`; return; }
+    const res = search(q);
+    if (!res.length) {
+      meta.textContent = '';
+      box.append(h('div', { class: 'empty' }, h('b', {}, 'No lo tengo registrado.'),
+        h('p', {}, 'Revisa la ortografía o busca solo una parte del nombre.')));
+      return;
+    }
+    meta.textContent = res.length === 1 ? '1 resultado' : `${res.length} resultados`;
+    for (const r of res) {
+      box.append(h('button', { class: 'res', type: 'button', onclick: () => openEditor(r.loc), 'aria-label': `${r.sub}: ${label(r.loc)}` },
+        h('div', { class: 'code' }, r.loc),
+        h('div', {},
+          h('div', { class: 'sub' }, r.sub),
+          r.names.length ? h('div', { class: 'brand' }, r.names.join(' · ')) : null,
+          h('div', { class: 'where' }, label(r.loc))),
+        miniMap(r.loc)));
+    }
+  }
+  $('q').addEventListener('input', renderResults);
+
+  // ---------- Estantes ----------
+  function renderGrid() {
+    const g = $('grid'); g.replaceChildren();
+    g.append(h('div'));
+    for (const s of SHELVES) g.append(h('div', { class: 'colh' }, s));
+    for (const l of LEVELS) {
+      g.append(h('div', { class: 'rowh' }, String(l)));
+      for (const s of SHELVES) {
+        const code = `${s}-${l}`, n = itemsAt(code).length;
+        g.append(h('button', { class: 'cell' + (n ? '' : ' empty-cell'), type: 'button', onclick: () => openEditor(code), 'aria-label': `${label(code)}, ${n} productos` },
+          h('span', { class: 'c' }, code), h('span', { class: 'n' }, n ? `${n}` : '—')));
+      }
+    }
+  }
+
+  // ---------- Editor de división ----------
+  const dlg = $('dlg');
+  let current = null, editingId = null;
+
+  function openEditor(code) {
+    current = code; editingId = null;
+    $('dlg-code').textContent = code;
+    $('dlg-title').textContent = label(code);
+    resetForm();
+    renderItems();
+    if (!dlg.open) dlg.showModal();
+    history.replaceState(null, '', '#/' + code);
+  }
+  function closeEditor() { if (dlg.open) dlg.close(); }
+  dlg.addEventListener('close', () => {
+    current = null; editingId = null;
+    history.replaceState(null, '', location.pathname + location.search);
+    renderGrid(); renderResults(); renderStat();
+  });
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) closeEditor(); });
+  $('dlg-close').addEventListener('click', closeEditor);
+
+  function resetForm() {
+    editingId = null;
+    $('f-sub').value = ''; $('f-name').value = '';
+    $('f-submit').textContent = 'Agregar a esta división';
+    $('f-cancel').hidden = true;
+  }
+  $('f-cancel').addEventListener('click', () => { resetForm(); $('f-sub').focus(); });
+
+  $('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const sub = $('f-sub').value.trim(), name = $('f-name').value.trim();
+    if (!sub) return;
+    if (editingId) {
+      const it = db.items.find(i => i.id === editingId);
+      if (it) { it.sub = sub; it.name = name; save(); toast('Guardado'); }
+    } else {
+      if (addItem(current, sub, name)) { save(); toast('Agregado'); }
+      else toast('Ya estaba en esta división');
+    }
+    resetForm(); renderItems(); $('f-sub').focus();
+  });
+
+  $('bulk-add').addEventListener('click', () => {
+    let ok = 0, dup = 0;
+    for (const raw of $('bulk').value.split('\n')) {
+      const line = raw.trim(); if (!line) continue;
+      const [sub, ...rest] = line.split(/[|;\t]/);
+      if (addItem(current, sub || '', rest.join(' ').trim())) ok++; else dup++;
+    }
+    if (ok) save();
+    $('bulk').value = '';
+    toast(`${ok} agregadas${dup ? `, ${dup} repetidas` : ''}`);
+    renderItems();
+  });
+
+  function renderItems() {
+    const list = itemsAt(current).sort((a, b) => norm(a.sub).localeCompare(norm(b.sub)));
+    $('count').textContent = list.length ? `${list.length} en esta división` : 'Esta división está vacía.';
+    const box = $('items'); box.replaceChildren();
+    for (const it of list) {
+      const move = h('select', { 'aria-label': 'Mover a otra división', onchange: (e) => {
+        const to = e.target.value; if (!to) return;
+        it.loc = to;
+        if (db.items.some(x => x !== it && dupKey(x) === dupKey(it))) db.items = db.items.filter(x => x !== it);
+        save(); toast(`Movido a ${to}`); renderItems();
+      } }, h('option', { value: '' }, 'Mover a…'), CODES.filter(c => c !== current).map(c => h('option', { value: c }, c)));
+      box.append(h('div', { class: 'item' },
+        h('div', {}, h('div', { class: 'sub' }, it.sub), it.name ? h('div', { class: 'brand' }, it.name) : null),
+        h('div', { class: 'acts' },
+          h('button', { type: 'button', onclick: () => {
+            editingId = it.id; $('f-sub').value = it.sub; $('f-name').value = it.name || '';
+            $('f-submit').textContent = 'Guardar cambios'; $('f-cancel').hidden = false; $('f-sub').focus();
+          } }, 'Editar'),
+          move,
+          h('button', { type: 'button', onclick: () => {
+            if (!confirm(`¿Borrar “${it.sub}” de ${current}?`)) return;
+            db.items = db.items.filter(x => x !== it); save(); renderItems();
+          } }, 'Borrar'))));
+    }
+    const dl = $('subs'); dl.replaceChildren();
+    for (const s of [...new Set(db.items.map(i => i.sub))].sort((a, b) => norm(a).localeCompare(norm(b)))) dl.append(h('option', { value: s }));
+  }
+
+  // ---------- Respaldo ----------
+  function renderStat() {
+    const used = new Set(db.items.map(i => i.loc)).size;
+    $('stat').textContent = `${db.items.length} productos · ${used} de ${CODES.length} divisiones con algo`;
+  }
+  function download(name, text, type) {
+    const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  $('exp-json').addEventListener('click', () => download(`ubicador-respaldo-${stamp()}.json`, JSON.stringify(db, null, 2), 'application/json'));
+  $('exp-csv').addEventListener('click', () => {
+    const esc = (s) => `"${String(s || '').replace(/"/g, '""')}"`;
+    const rows = [...db.items].sort((a, b) => CODES.indexOf(a.loc) - CODES.indexOf(b.loc) || norm(a.sub).localeCompare(norm(b.sub)));
+    download(`ubicador-${stamp()}.csv`, '﻿' + 'division,sustancia_activa,marca\n' + rows.map(i => [i.loc, i.sub, i.name].map(esc).join(',')).join('\n'), 'text/csv');
+  });
+  $('imp').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!d || !Array.isArray(d.items)) throw new Error('formato');
+      let ok = 0;
+      for (const it of d.items) if (valid(it) && addItem(it.loc, it.sub, it.name || '')) ok++;
+      save(); renderStat(); toast(`${ok} productos importados`);
+    } catch (err) { toast('Ese archivo no es un respaldo válido'); }
+  });
+  $('wipe').addEventListener('click', () => {
+    if (!db.items.length) return toast('Ya está vacío');
+    if (!confirm('¿Borrar TODOS los productos de este dispositivo? Esto no se puede deshacer. Descarga un respaldo antes.')) return;
+    db.items = []; save(); renderStat(); toast('Todo borrado');
+  });
+
+  // ---------- Enlace directo a una división (#/A-1) ----------
+  function fromHash() {
+    const m = location.hash.match(/^#\/([A-E]-[1-4])$/i);
+    if (!m) return;
+    const code = m[1].toUpperCase();
+    if (CODES.includes(code)) { showTab('estantes'); openEditor(code); }
+  }
+  addEventListener('hashchange', fromHash);
+
+  // ---------- Inicio ----------
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  renderResults(); renderGrid(); renderStat();
+  fromHash();
+  $('q').focus();
+})();
+</script>
+</body>
+</html>
