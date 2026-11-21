@@ -1,10 +1,11 @@
 // Service worker: la app funciona sin internet.
 // Estrategia: responde desde caché y actualiza en segundo plano (la versión nueva se ve en la siguiente apertura).
-const CACHE = 'ubicador-v1';
+const CACHE = 'ubicador-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
-  'fonts/eb-garamond-400.woff2', 'fonts/eb-garamond-600.woff2'
+  'fonts/eb-garamond-400.woff2', 'fonts/eb-garamond-600.woff2',
+  'lib/qrcode.js', 'lib/jsQR.js'
 ];
 
 self.addEventListener('install', (e) => {
