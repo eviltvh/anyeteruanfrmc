@@ -1,6 +1,6 @@
 // Service worker: la app funciona sin internet.
 // Estrategia: responde desde caché y actualiza en segundo plano (la versión nueva se ve en la siguiente apertura).
-const CACHE = 'ubicador-v2';
+const CACHE = 'ubicador-v3';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
