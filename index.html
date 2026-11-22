@@ -56,8 +56,9 @@
   .res .sub { font-weight: 700; font-size: 18px; overflow-wrap: anywhere; }
   .res .brand { color: var(--mut); font-size: 14px; overflow-wrap: anywhere; }
   .res .where { color: var(--mut); font-size: 12px; margin-top: 2px; }
-  .mini { display: grid; grid-template-columns: repeat(5, 11px); gap: 2px; }
-  .mini i { display: block; width: 11px; height: 8px; background: #d8d4ca; }
+  .mini { display: grid; grid-template-columns: repeat(9, 7px); gap: 2px; }
+  .mini i { display: block; width: 7px; height: 5px; background: #d8d4ca; }
+  .mini i.x { background: transparent; }
   .mini i.on { background: var(--ink); }
   .empty { border: 3px dashed var(--ink); padding: 18px; background: transparent; }
   .empty b { font-family: var(--serif); font-size: 22px; font-weight: 600; }
@@ -71,6 +72,8 @@
   .cell .c { font-family: var(--serif); font-weight: 700; font-size: 22px; line-height: 1; }
   .cell .n { font-size: 11px; color: var(--mut); }
   .cell.empty-cell { background: transparent; border-style: dashed; }
+  .shelf-grid.vit { grid-template-columns: 30px repeat(3, 1fr); max-width: 230px; }
+  .sec { font-family: var(--serif); font-weight: 600; font-size: 26px; margin: 26px 0 4px; }
   .legend { margin-top: 12px; font-size: 13px; color: var(--mut); }
 
   /* Respaldo */
@@ -138,8 +141,11 @@
   </section>
 
   <section id="v-estantes" role="tabpanel" aria-labelledby="tab-estantes" hidden>
-    <p class="hint">Vista de frente: 5 estantes (A–E) y 4 niveles (1 = arriba, 4 = abajo). Toca una división para llenarla o editarla.</p>
+    <p class="hint">Vista de frente. Estantes A, B y C: niveles 1–4. Estantes D y E: niveles 0–5 (0 = el más alto, 5 = el más bajo). Toca una división para llenarla o editarla.</p>
     <div id="grid" class="shelf-grid"></div>
+    <h2 class="sec">Vitrinas</h2>
+    <p class="hint">Vitrinas a, b y c con 3 slots cada una (aV-1 … cV-3).</p>
+    <div id="grid-v" class="shelf-grid vit"></div>
     <p class="legend">Línea punteada = división vacía.</p>
   </section>
 
@@ -249,8 +255,14 @@
 
   // ---------- Configuración ----------
   const SHELVES = ['A', 'B', 'C', 'D', 'E'];   // 5 estantes
-  const LEVELS = [1, 2, 3, 4];                 // 4 niveles (1 = arriba)
-  const CODES = LEVELS.flatMap(l => SHELVES.map(s => `${s}-${l}`)); // orden de lectura: fila por fila
+  // A, B y C: niveles 1–4. D y E: niveles 0–5 (0 = el más alto, 5 = el más bajo).
+  const LEVELS_OF = { A: [1, 2, 3, 4], B: [1, 2, 3, 4], C: [1, 2, 3, 4], D: [0, 1, 2, 3, 4, 5], E: [0, 1, 2, 3, 4, 5] };
+  const ROWS = [0, 1, 2, 3, 4, 5];             // filas de la vista de frente, de arriba a abajo
+  const VITRINAS = ['a', 'b', 'c'];            // 3 vitrinas con 3 slots cada una: aV-1 … cV-3
+  const SLOTS = [1, 2, 3];
+  const SHELF_CODES = SHELVES.flatMap(s => LEVELS_OF[s].map(l => `${s}-${l}`));
+  const VIT_CODES = VITRINAS.flatMap(v => SLOTS.map(n => `${v}V-${n}`));
+  const CODES = [...SHELF_CODES, ...VIT_CODES];
   const KEY = 'ubicador-medicamentos.v1';
 
   // ---------- Utilidades ----------
@@ -267,7 +279,10 @@
     for (const kid of kids.flat()) if (kid != null) el.append(kid.nodeType ? kid : document.createTextNode(kid));
     return el;
   };
-  const label = (code) => { const [s, l] = code.split('-'); return `Estante ${s} · Nivel ${l}`; };
+  const label = (code) => {
+    const [s, l] = code.split('-');
+    return s.endsWith('V') ? `Vitrina ${s[0]} · Slot ${l}` : `Estante ${s} · Nivel ${l}`;
+  };
 
   let toastTimer;
   function toast(msg) {
@@ -331,8 +346,18 @@
       a.rank - b.rank || norm(a.sub).localeCompare(norm(b.sub)) || CODES.indexOf(a.loc) - CODES.indexOf(b.loc));
   }
 
+  // Mini-mapa: estantes A–E (6 filas) + hueco + vitrinas a–c (3 slots)
+  const MINI = (() => {
+    const cells = [];
+    for (const r of ROWS) {
+      for (const s of SHELVES) cells.push(LEVELS_OF[s].includes(r) ? `${s}-${r}` : null);
+      cells.push(null);
+      for (const v of VITRINAS) cells.push(r < 3 ? `${v}V-${r + 1}` : null);
+    }
+    return cells;
+  })();
   function miniMap(code) {
-    return h('div', { class: 'mini', 'aria-hidden': 'true' }, CODES.map(c => h('i', { class: c === code ? 'on' : '' })));
+    return h('div', { class: 'mini', 'aria-hidden': 'true' }, MINI.map(c => h('i', { class: c === null ? 'x' : c === code ? 'on' : '' })));
   }
 
   function renderResults() {
@@ -366,17 +391,25 @@
   $('q').addEventListener('input', renderResults);
 
   // ---------- Estantes ----------
+  function cellBtn(code) {
+    const n = itemsAt(code).length;
+    return h('button', { class: 'cell' + (n ? '' : ' empty-cell'), type: 'button', onclick: () => openEditor(code), 'aria-label': `${label(code)}, ${n} productos` },
+      h('span', { class: 'c' }, code), h('span', { class: 'n' }, n ? `${n}` : '—'));
+  }
   function renderGrid() {
     const g = $('grid'); g.replaceChildren();
     g.append(h('div'));
     for (const s of SHELVES) g.append(h('div', { class: 'colh' }, s));
-    for (const l of LEVELS) {
+    for (const l of ROWS) {
       g.append(h('div', { class: 'rowh' }, String(l)));
-      for (const s of SHELVES) {
-        const code = `${s}-${l}`, n = itemsAt(code).length;
-        g.append(h('button', { class: 'cell' + (n ? '' : ' empty-cell'), type: 'button', onclick: () => openEditor(code), 'aria-label': `${label(code)}, ${n} productos` },
-          h('span', { class: 'c' }, code), h('span', { class: 'n' }, n ? `${n}` : '—')));
-      }
+      for (const s of SHELVES) g.append(LEVELS_OF[s].includes(l) ? cellBtn(`${s}-${l}`) : h('div'));
+    }
+    const v = $('grid-v'); v.replaceChildren();
+    v.append(h('div'));
+    for (const x of VITRINAS) v.append(h('div', { class: 'colh' }, x));
+    for (const n of SLOTS) {
+      v.append(h('div', { class: 'rowh' }, String(n)));
+      for (const x of VITRINAS) v.append(cellBtn(`${x}V-${n}`));
     }
   }
 
@@ -708,10 +741,10 @@
   // ---------- Enlaces directos: #/A-1 (división) y #u=… (recepción por QR) ----------
   function fromHash() {
     if (location.hash.startsWith('#u=')) return receiveFromHash();
-    const m = location.hash.match(/^#\/([A-E]-[1-4])$/i);
+    const m = location.hash.match(/^#\/([A-E]-[0-5]|[abc]V-[1-3])$/i);
     if (!m) return;
-    const code = m[1].toUpperCase();
-    if (CODES.includes(code)) { showTab('estantes'); openEditor(code); }
+    const code = CODES.find(c => c.toLowerCase() === m[1].toLowerCase());
+    if (code) { showTab('estantes'); openEditor(code); }
   }
   addEventListener('hashchange', fromHash);
 
